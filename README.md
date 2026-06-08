@@ -1,29 +1,26 @@
 # Replication package — *Conditional Regulation of Frontier AI with Automated Insider Forecasts*
 
-Code to reproduce the forecasting-evidence figures and statistics in the paper (the human-vs-LLM
-comparison, the training-compute scaling figure, and the associated p-values), built on the public
-**ForecastBench** data (Karger et al. 2024).
+Code to reproduce the forecasting-evidence results in the paper, built on the public **ForecastBench**
+data (Karger et al. 2024): the human-vs-LLM comparison (Figure 2), the training-compute scaling
+figure (Figure 1), and the predicted-best-vs-persisters statistic.
 
 ## Contents
 | File | Produces |
 |---|---|
-| `build_two_panel_chain.py` | Humans (July 2024) vs the modern LLM frontier (2025–26), chained through a fixed benchmark basket; prints the predicted-best-vs-new-benchmark p-value. → `forecastbench_two_panel_chain.png/.csv` |
-| `build_flop_scaling.py` | Forecast accuracy vs log₁₀ training compute — replicates & extends Karger et al. (2024) Fig 1(b). → `forecastbench_flop_scaling.png/.csv` |
-| `build_pb_vs_2024persist.py` | Predicted-best LLM vs an index of the best 2024 models that persist into 2025–26 (no chaining); prints the two-sided bootstrap p-value. |
+| `build_two_panel_chain.py` | **Figure 2** — humans (July 2024) vs the modern LLM frontier (2025–26); each panel scored on raw Brier, with a fixed-quality benchmark model. → `forecastbench_two_panel_chain.png/.csv` |
+| `build_flop_scaling.py` | **Figure 1** — forecast accuracy vs log₁₀ training compute; replicates & extends Karger et al. (2024) Fig 1(b). → `forecastbench_flop_scaling.png/.csv` |
+| `build_pb_vs_2024persist.py` | The headline statistic — the prequential predicted-best LLM vs. the strong 2024 models that persist into 2025–26; prints the two-sided bootstrap **p = 0.013**. |
 
-## Data (not included; ~115 MB, public)
-All ForecastBench inputs are public at **https://forecastbench.org**. Place them under `./fb_work/`:
+## Data (not included; public, ~115 MB)
+All inputs are public ForecastBench data. Place them under `./fb_work/`:
 
-1. **Processed forecast sets** — download `processed_forecast_sets.tar.gz` from the ForecastBench
-   data page and extract so that rounds live at
-   `fb_work/forecastbench-processed-forecast-sets/<YYYY-MM-DD>/*.json`.
-   (Each round directory includes the per-model forecast files and, for the `2024-07-21` round, the
-   `...ForecastBench.human_super.json` / `...human_public.json` human-survey files.)
-2. **Question fixed effects** — download the ForecastBench question-fixed-effects dataset and save it
-   as `fb_work/qfe_tournament.json`. (Needed only by `build_flop_scaling.py`, which uses the
-   difficulty-adjusted index; the other two scripts use raw Brier on common question sets.)
+1. **Processed forecast sets** — download from forecastbench.org (or the ForecastBench datasets repo)
+   and extract so rounds live at `fb_work/forecastbench-processed-forecast-sets/<YYYY-MM-DD>/*.json`.
+   Each round directory holds the per-model zero-shot forecast files; the `2024-07-21` round also holds
+   the `...ForecastBench.human_super.json` / `...human_public.json` human-survey files.
+2. **Question fixed effects** — save the ForecastBench question-fixed-effects file as
+   `fb_work/qfe_tournament.json` (needed only by `build_flop_scaling.py`).
 
-Final layout:
 ```
 .
 ├── build_two_panel_chain.py
@@ -35,7 +32,7 @@ Final layout:
 ```
 
 ## Running
-Requires Python 3.10+ with `numpy`, `pandas`, `matplotlib`:
+Python 3.10+ with `numpy`, `pandas`, `matplotlib`:
 ```
 pip install numpy pandas matplotlib
 python build_two_panel_chain.py
@@ -46,22 +43,26 @@ Outputs (PNGs/CSVs) are written to the working directory. The bootstrap reps (`B
 top of each script; lower them for a quick run.
 
 ## Method notes
-- **Scoring.** Per model/round we use a Brier index `100·(1 − √(0.5·mean(dataset Brier) + 0.5·mean(market Brier)))`.
-  Cross-period panels use *raw* Brier on a common resolved question set (difficulty cancels because the
-  same questions are scored for every forecaster); the compute figure uses the *difficulty-adjusted*
-  index (each question's Brier minus its published question fixed effect), which reproduces the
-  ForecastBench leaderboard to within ±0.05.
-- **Human benchmark.** Superforecaster and public medians exist only for the one set humans
-  forecasted (`2024-07-21`, all resolved questions); LLMs are scored on the identical questions.
-- **Chaining.** Because no model spans both periods, the modern-era figure links to the 2024 scale
-  through fixed-quality benchmark baskets — an "old" basket (Claude-3.5-Sonnet, GPT-4o) and a "new"
-  basket (GPT-4.1, Gemini-2.5-Pro) that score near-identically over their March–August 2025 overlap.
-- **Predicted-best (deployable).** Selected prequentially from prior-round performance only,
-  removing the winner's-curse/optimizer's-curse bias of an ex-post-best ("oracle") pick.
-- **Uncertainty.** Two-level bootstrap (resample rounds, then questions within rounds).
-- **External capability data (hard-coded in the scripts, with sources).** LMArena Elo and the
-  objective-benchmark values are from public leaderboards; training-compute (FLOP) estimates are from
-  **Epoch AI**. Closed frontier models lack public compute estimates and are noted as excluded.
+- **Scoring.** A forecaster's score in a round is raw Brier, `0.5·mean(dataset Brier) + 0.5·mean(market Brier)`,
+  over the questions it answered (lower = better). Within each panel every forecaster is scored on the
+  *identical* resolved questions, so question difficulty cancels and no adjustment is needed.
+- **Benchmark models (Figure 2).** Each panel shows the benchmark with real data in that era: the
+  **old benchmark, Claude-3.5-Sonnet** (present in July 2024 and the early modern rounds) and the
+  **new benchmark, GPT-4.1** (present throughout 2025–26). They overlap April–August 2025, where
+  GPT-4.1 is a stable ~0.015 Brier better; this near-constant offset puts the two panels on a common
+  scale and anchors the cross-era superforecaster-vs-oracle comparison.
+- **Predicted-best (deployable).** Selected prequentially: in each round, models are ranked by their
+  prior-round performance only (relative to that round's mean, shrunk toward a model-family prior),
+  and the predicted best is picked — removing the winner's-curse bias of an ex-post "oracle" pick.
+  Ranking uses a within-round difficulty-neutral index; all *reported* scores are raw Brier.
+- **Difficulty adjustment (Figure 1 only).** The compute figure must compare scores across different
+  question sets, so each question's raw Brier is adjusted by ForecastBench's published question fixed
+  effect. Using those published fixed effects, our per-model scores reproduce ForecastBench's published
+  per-model leaderboard closely — within ~2 points on its 0–100 index (≈0.015 Brier on average) across
+  the 68 matchable models.
+- **Uncertainty.** Two-level bootstrap: resample rounds, then questions within rounds.
+- **Training compute (Figure 1).** FLOP estimates are from Epoch AI; closed frontier models without
+  public estimates are excluded and noted on the figure.
 
 ## Citation
 Abaluck, J. (2026). *Conditional Regulation of Frontier AI with Automated Insider Forecasts.*
